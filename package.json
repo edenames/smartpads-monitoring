@@ -1,0 +1,14 @@
+{
+  "name": "smartpads-monitoring",
+  "version": "1.0.0",
+  "description": "Checkly monitoring checks for SmartPads website",
+  "scripts": {
+    "test": "npx checkly test --verbose",
+    "deploy": "npx checkly deploy"
+  },
+  "devDependencies": {
+    "checkly": "^8.0.0",
+    "@playwright/test": "^1.48.0",
+    "typescript": "^5.0.0"
+  }
+}
