@@ -3,12 +3,14 @@ name: SmartPads Site Health
 on:
   schedule:
     - cron: '*/30 * * * *'  # every 30 minutes
-  workflow_dispatch:          # also allows manual runs from GitHub
+  workflow_dispatch:          # allows manual runs from GitHub
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      issues: write   # needed to create GitHub issues
 
     steps:
       - uses: actions/checkout@v4
@@ -25,4 +27,20 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Run health checks
-        run: npx playwright test --reporter=github,list
+        id: playwright
+        run: npx playwright test
+        continue-on-error: true  # lets the diagnose step run even on failure
+
+      - name: Generate AI diagnosis and open issue
+        if: steps.playwright.outcome == 'failure'
+        run: node diagnose.js
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          PLAYWRIGHT_RESULTS: results.json
+
+      - name: Fail the workflow if checks failed
+        if: steps.playwright.outcome == 'failure'
+        run: exit 1
