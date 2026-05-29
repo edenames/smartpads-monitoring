@@ -73,7 +73,7 @@ The contact form on the Contact Us page is missing or not submitting.
 1. Visit [smartpads.co/contact-us](https://smartpads.co/contact-us) in incognito to confirm
 2. Note what's broken — form missing entirely, or submit button not working
 3. **Do not edit form embeds** — escalate to developer
-4. Log into HubSpot portal 43422805 → **Forms** and check if forms show as active
+4. Log into HubSpot → **Forms** and check if forms show as active
 
 ### Model inquiry modal not opening
 

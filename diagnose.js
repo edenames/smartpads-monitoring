@@ -33,7 +33,7 @@ const CHECK_CONTEXT = {
     steps: [
       'Visit smartpads.co/contact-us in an incognito window',
       'Open browser DevTools → Console — look for red errors',
-      'Log into HubSpot portal 43422805 → Forms to confirm forms are active',
+      'Log into HubSpot → Forms to confirm forms are active',
       'Do not edit form embeds without a developer',
     ],
   },
