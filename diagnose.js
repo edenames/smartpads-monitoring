@@ -6,7 +6,7 @@ const CHECK_CONTEXT = {
   '01-homepage': {
     name: 'Homepage',
     tier: 2,
-    causes: 'Webflow publish failure, CDN issue, or domain misconfiguration',
+    summary: 'The homepage is not loading correctly. This is typically a Webflow publish failure, CDN issue, or domain misconfiguration.',
     steps: [
       'Check Webflow status at webflowstatus.com',
       'Try the staging URL: smartpads-website.webflow.io',
@@ -16,7 +16,7 @@ const CHECK_CONTEXT = {
   '02-start-here-quiz': {
     name: 'Start Here Quiz',
     tier: 2,
-    causes: 'Quiz embed accidentally removed or JS failed to load after a Webflow publish',
+    summary: 'The quiz on the Start Here page is not loading. This usually means a quiz embed was accidentally removed or the page JS failed to load after a recent Webflow publish.',
     steps: [
       'Visit smartpads.co/start-here in an incognito window',
       'Open browser DevTools → Console — look for red errors',
@@ -27,7 +27,7 @@ const CHECK_CONTEXT = {
   '03-contact-form': {
     name: 'Contact Form',
     tier: 2,
-    causes: 'Form embed removed, field IDs changed, or HubSpot script failed to load',
+    summary: 'The contact form on the Contact Us page is missing or broken. This typically means a form embed was removed or the HubSpot script failed to load.',
     steps: [
       'Visit smartpads.co/contact-us in an incognito window',
       'Open browser DevTools → Console — look for red errors',
@@ -38,7 +38,7 @@ const CHECK_CONTEXT = {
   '04-design-catalog': {
     name: 'Design Catalog',
     tier: 1,
-    causes: 'CMS items accidentally unpublished, or Webflow publish failure',
+    summary: 'The design catalog page is not showing models. This is usually caused by CMS items being accidentally unpublished or a Webflow publish failure.',
     steps: [
       'Visit smartpads.co/design-catalog in an incognito window',
       'If models are missing: check Webflow CMS → Designs for any unpublished items',
@@ -48,7 +48,7 @@ const CHECK_CONTEXT = {
   '05-model-inquiry-modal': {
     name: 'Model Inquiry Modal',
     tier: 2,
-    causes: 'Modal JS broken, inquiry button missing, or Trailhead page unpublished',
+    summary: 'The inquiry modal on the Trailhead model page is not opening. This could mean the page is unpublished, the inquiry button is missing, or the modal JavaScript is broken.',
     steps: [
       'Visit smartpads.co/designs/trailhead in an incognito window',
       'If page 404s: check Webflow CMS → Designs → confirm Trailhead is published',
@@ -58,7 +58,7 @@ const CHECK_CONTEXT = {
   '06-resources': {
     name: 'Resources Page',
     tier: 1,
-    causes: 'Blog posts accidentally unpublished, or Webflow publish failure',
+    summary: 'The Resources page is not showing articles. Blog posts may have been accidentally unpublished, or there was a Webflow publish failure.',
     steps: [
       'Visit smartpads.co/resources in an incognito window',
       'If articles are missing: check Webflow CMS → Resources for unpublished items',
@@ -80,14 +80,11 @@ function collectFailures(suites) {
         t.results?.some(r => r.status === 'failed')
       )
       if (failed) {
-        const errorMessage =
-          spec.tests?.[0]?.results?.find(r => r.status === 'failed')?.error?.message || 'Unknown error'
         const checkKey = getCheckKey(suite.file || spec.file || '')
         failures.push({
           name: spec.title,
           checkKey,
           context: CHECK_CONTEXT[checkKey],
-          error: errorMessage.substring(0, 400),
         })
       }
     }
@@ -96,11 +93,24 @@ function collectFailures(suites) {
   return failures
 }
 
-function post(hostname, path, headers, body) {
+async function createIssue(title, body) {
+  const [owner, repo] = (process.env.REPO || '').split('/')
+  const data = JSON.stringify({ title, body, labels: ['site-health'] })
+
   return new Promise((resolve, reject) => {
-    const data = JSON.stringify(body)
     const req = https.request(
-      { hostname, path, method: 'POST', headers: { ...headers, 'content-length': Buffer.byteLength(data) } },
+      {
+        hostname: 'api.github.com',
+        path: `/repos/${owner}/${repo}/issues`,
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+          accept: 'application/vnd.github+json',
+          'user-agent': 'SmartPads-Monitor',
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(data),
+        },
+      },
       res => {
         let raw = ''
         res.on('data', c => (raw += c))
@@ -111,39 +121,6 @@ function post(hostname, path, headers, body) {
     req.write(data)
     req.end()
   })
-}
-
-async function callClaude(prompt) {
-  const result = await post(
-    'api.anthropic.com',
-    '/v1/messages',
-    {
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
-    {
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      messages: [{ role: 'user', content: prompt }],
-    }
-  )
-  return result.content?.[0]?.text || 'Diagnosis unavailable.'
-}
-
-async function createIssue(title, body) {
-  const [owner, repo] = (process.env.REPO || '').split('/')
-  return post(
-    'api.github.com',
-    `/repos/${owner}/${repo}/issues`,
-    {
-      authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-      accept: 'application/vnd.github+json',
-      'user-agent': 'SmartPads-Monitor',
-      'content-type': 'application/json',
-    },
-    { title, body, labels: ['site-health'] }
-  )
 }
 
 async function main() {
@@ -161,53 +138,32 @@ async function main() {
     return
   }
 
-  const failureList = failures
-    .map(f => {
-      const ctx = f.context
-      return [
-        `**Check:** ${ctx?.name || f.name}`,
-        `**Error:** ${f.error}`,
-        `**Likely cause:** ${ctx?.causes || 'Unknown'}`,
-      ].join('\n')
-    })
-    .join('\n\n')
-
-  const prompt = `You are a site monitoring assistant for SmartPads (smartpads.co), a modular home builder on Webflow with custom HubSpot forms.
-
-These health checks just failed:
-
-${failureList}
-
-Write a 3–5 sentence plain-English summary for a non-technical team member explaining what is likely broken and what to do first. Do not use jargon. Be specific and direct.`
-
-  console.log('Calling Claude for diagnosis...')
-  const diagnosis = await callClaude(prompt)
-
   const failedNames = failures.map(f => f.context?.name || f.name).join(', ')
   const runUrl = `https://github.com/${process.env.REPO}/actions/runs/${process.env.GITHUB_RUN_ID}`
 
   const issueBody = `## What failed
-${failures.map(f => `- **${f.context?.name || f.name}** (${f.name})`).join('\n')}
+${failures.map(f => `- **${f.context?.name || f.name}**`).join('\n')}
 
-[View Actions run](${runUrl})
+[View Actions run →](${runUrl})
 
 ---
 
 ## What's likely wrong
 
-${diagnosis}
+${failures.map(f => f.context?.summary || 'Unknown failure.').join('\n\n')}
 
 ---
 
 ## What to do
 
 ${failures
-  .filter(f => f.context)
-  .map(f => {
-    const ctx = f.context
-    return `### ${ctx.name} — Tier ${ctx.tier}${ctx.tier === 1 ? ' (team can fix)' : ' (escalate to developer)'}\n${ctx.steps.map(s => `- ${s}`).join('\n')}`
-  })
-  .join('\n\n')}
+    .filter(f => f.context)
+    .map(f => {
+      const ctx = f.context
+      const tierLabel = ctx.tier === 1 ? 'Team can fix' : 'Escalate to developer'
+      return `### ${ctx.name} — Tier ${ctx.tier} (${tierLabel})\n${ctx.steps.map(s => `- ${s}`).join('\n')}`
+    })
+    .join('\n\n')}
 
 ---
 *Close this issue once resolved.*`
@@ -222,5 +178,4 @@ ${failures
 
 main().catch(err => {
   console.error('Diagnosis script error:', err.message)
-  // Don't exit 1 — let the workflow failure speak for itself
 })

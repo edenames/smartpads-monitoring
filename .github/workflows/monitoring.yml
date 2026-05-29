@@ -35,7 +35,6 @@ jobs:
         if: steps.playwright.outcome == 'failure'
         run: node diagnose.js
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
