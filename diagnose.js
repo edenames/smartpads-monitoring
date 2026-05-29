@@ -81,16 +81,54 @@ function collectFailures(suites) {
       )
       if (failed) {
         const checkKey = getCheckKey(suite.file || spec.file || '')
+        const errorMessage =
+          spec.tests?.[0]?.results?.find(r => r.status === 'failed')?.error?.message || 'unknown error'
         failures.push({
           name: spec.title,
           checkKey,
           context: CHECK_CONTEXT[checkKey],
+          error: errorMessage.substring(0, 300),
         })
       }
     }
     failures.push(...collectFailures(suite.suites))
   }
   return failures
+}
+
+async function callClaude(prompt) {
+  const data = JSON.stringify({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 400,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'api.anthropic.com',
+        path: '/v1/messages',
+        method: 'POST',
+        headers: {
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(data),
+        },
+      },
+      res => {
+        let raw = ''
+        res.on('data', c => (raw += c))
+        res.on('end', () => {
+          const parsed = JSON.parse(raw)
+          resolve(parsed.content?.[0]?.text || 'Diagnosis unavailable.')
+        })
+      }
+    )
+    req.on('error', reject)
+    req.write(data)
+    req.end()
+  })
 }
 
 async function createIssue(title, body) {
@@ -141,6 +179,26 @@ async function main() {
   const failedNames = failures.map(f => f.context?.name || f.name).join(', ')
   const runUrl = `https://github.com/${process.env.REPO}/actions/runs/${process.env.GITHUB_RUN_ID}`
 
+  const failureDetail = failures.map(f => {
+    const ctx = f.context
+    return [
+      `Check: ${ctx?.name || f.name}`,
+      `Error: ${f.error || 'unknown'}`,
+      `Typical cause: ${ctx?.summary || 'unknown'}`,
+    ].join('\n')
+  }).join('\n\n')
+
+  const prompt = `You are a site monitoring assistant for SmartPads (smartpads.co), a modular home builder on Webflow CMS with custom HubSpot forms.
+
+These health checks just failed:
+
+${failureDetail}
+
+Write 2-4 sentences in plain English for a non-technical team member. Based on the specific error message, explain what is most likely broken right now and whether the team should try to fix it themselves or escalate immediately. Be specific — distinguish between "page didn't load at all" vs "element was missing" vs "timed out" where it matters. No jargon.`
+
+  console.log('Calling Claude for diagnosis...')
+  const diagnosis = await callClaude(prompt)
+
   const issueBody = `## What failed
 ${failures.map(f => `- **${f.context?.name || f.name}**`).join('\n')}
 
@@ -150,7 +208,7 @@ ${failures.map(f => `- **${f.context?.name || f.name}**`).join('\n')}
 
 ## What's likely wrong
 
-${failures.map(f => f.context?.summary || 'Unknown failure.').join('\n\n')}
+${diagnosis}
 
 ---
 
