@@ -1,12 +1,14 @@
 const fs = require('fs')
 const https = require('https')
 
+const PLAYBOOK_BASE = 'https://github.com/edenames/smartpads-monitoring/blob/main/PLAYBOOK.md'
+
 // What each check monitors and how to respond when it fails
 const CHECK_CONTEXT = {
   '01-homepage': {
     name: 'Homepage',
     tier: 2,
-    summary: 'The homepage is not loading correctly. This is typically a Webflow publish failure, CDN issue, or domain misconfiguration.',
+    playbookUrl: `${PLAYBOOK_BASE}#homepage-not-loading`,
     steps: [
       'Check Webflow status at webflowstatus.com',
       'Try the staging URL: smartpads-website.webflow.io',
@@ -16,7 +18,7 @@ const CHECK_CONTEXT = {
   '02-start-here-quiz': {
     name: 'Start Here Quiz',
     tier: 2,
-    summary: 'The quiz on the Start Here page is not loading. This usually means a quiz embed was accidentally removed or the page JS failed to load after a recent Webflow publish.',
+    playbookUrl: `${PLAYBOOK_BASE}#start-here-quiz-not-loading`,
     steps: [
       'Visit smartpads.co/start-here in an incognito window',
       'Open browser DevTools → Console — look for red errors',
@@ -27,7 +29,7 @@ const CHECK_CONTEXT = {
   '03-contact-form': {
     name: 'Contact Form',
     tier: 2,
-    summary: 'The contact form on the Contact Us page is missing or broken. This typically means a form embed was removed or the HubSpot script failed to load.',
+    playbookUrl: `${PLAYBOOK_BASE}#contact-form-broken`,
     steps: [
       'Visit smartpads.co/contact-us in an incognito window',
       'Open browser DevTools → Console — look for red errors',
@@ -38,7 +40,7 @@ const CHECK_CONTEXT = {
   '04-design-catalog': {
     name: 'Design Catalog',
     tier: 1,
-    summary: 'The design catalog page is not showing models. This is usually caused by CMS items being accidentally unpublished or a Webflow publish failure.',
+    playbookUrl: `${PLAYBOOK_BASE}#design-catalog-not-showing-models`,
     steps: [
       'Visit smartpads.co/design-catalog in an incognito window',
       'If models are missing: check Webflow CMS → Designs for any unpublished items',
@@ -48,7 +50,7 @@ const CHECK_CONTEXT = {
   '05-model-inquiry-modal': {
     name: 'Model Inquiry Modal',
     tier: 2,
-    summary: 'The inquiry modal on the Trailhead model page is not opening. This could mean the page is unpublished, the inquiry button is missing, or the modal JavaScript is broken.',
+    playbookUrl: `${PLAYBOOK_BASE}#model-inquiry-modal-not-opening`,
     steps: [
       'Visit smartpads.co/designs/trailhead in an incognito window',
       'If page 404s: check Webflow CMS → Designs → confirm Trailhead is published',
@@ -58,7 +60,7 @@ const CHECK_CONTEXT = {
   '06-resources': {
     name: 'Resources Page',
     tier: 1,
-    summary: 'The Resources page is not showing articles. Blog posts may have been accidentally unpublished, or there was a Webflow publish failure.',
+    playbookUrl: `${PLAYBOOK_BASE}#resources-page-not-showing-articles`,
     steps: [
       'Visit smartpads.co/resources in an incognito window',
       'If articles are missing: check Webflow CMS → Resources for unpublished items',
@@ -219,7 +221,7 @@ ${failures
     .map(f => {
       const ctx = f.context
       const tierLabel = ctx.tier === 1 ? 'Team can fix' : 'Escalate to developer'
-      return `### ${ctx.name} — Tier ${ctx.tier} (${tierLabel})\n${ctx.steps.map(s => `- ${s}`).join('\n')}`
+      return `### ${ctx.name} — Tier ${ctx.tier} (${tierLabel})\n${ctx.steps.map(s => `- ${s}`).join('\n')}\n\n[Full playbook steps →](${ctx.playbookUrl})`
     })
     .join('\n\n')}
 
