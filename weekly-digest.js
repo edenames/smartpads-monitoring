@@ -1,5 +1,48 @@
 const https = require('https')
 
+async function sendEmail(subject, text) {
+  const emails = (process.env.ALERT_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean)
+  if (!emails.length || !process.env.RESEND_API_KEY) return
+
+  const data = JSON.stringify({
+    from: 'SmartPads Monitoring <onboarding@resend.dev>',
+    to: emails,
+    subject,
+    text,
+  })
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'api.resend.com',
+        path: '/emails',
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(data),
+        },
+      },
+      res => {
+        let raw = ''
+        res.on('data', c => (raw += c))
+        res.on('end', () => {
+          const parsed = JSON.parse(raw)
+          if (parsed.id) {
+            console.log(`Digest email sent: ${parsed.id}`)
+          } else {
+            console.error('Resend error:', JSON.stringify(parsed))
+          }
+          resolve()
+        })
+      }
+    )
+    req.on('error', reject)
+    req.write(data)
+    req.end()
+  })
+}
+
 function githubGet(path) {
   const [owner, repo] = (process.env.REPO || '').split('/')
   const fullPath = path.replace('{owner}', owner).replace('{repo}', repo)
@@ -111,6 +154,13 @@ Checks run every 30 minutes via [GitHub Actions](https://github.com/${process.en
 
   const issue = await createIssue(title, body)
   console.log(`Weekly digest created: ${issue.html_url}`)
+
+  const openCount = incidents.filter(i => i.state === 'open').length
+  const emailText = incidents.length === 0
+    ? `All automated checks passed this week. No incidents.\n\n${issue.html_url}`
+    : `${openCount > 0 ? `${openCount} incident(s) still open — action needed.` : 'All incidents resolved.'}\n\nFull summary: ${issue.html_url}`
+
+  await sendEmail(title, emailText)
 }
 
 main().catch(err => {

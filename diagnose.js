@@ -133,6 +133,49 @@ async function callClaude(prompt) {
   })
 }
 
+async function sendEmail(subject, text) {
+  const emails = (process.env.ALERT_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean)
+  if (!emails.length || !process.env.RESEND_API_KEY) return
+
+  const data = JSON.stringify({
+    from: 'SmartPads Monitoring <onboarding@resend.dev>',
+    to: emails,
+    subject,
+    text,
+  })
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'api.resend.com',
+        path: '/emails',
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(data),
+        },
+      },
+      res => {
+        let raw = ''
+        res.on('data', c => (raw += c))
+        res.on('end', () => {
+          const parsed = JSON.parse(raw)
+          if (parsed.id) {
+            console.log(`Alert email sent: ${parsed.id}`)
+          } else {
+            console.error('Resend error:', JSON.stringify(parsed))
+          }
+          resolve()
+        })
+      }
+    )
+    req.on('error', reject)
+    req.write(data)
+    req.end()
+  })
+}
+
 async function createIssue(title, body) {
   const [owner, repo] = (process.env.REPO || '').split('/')
   const data = JSON.stringify({ title, body, labels: ['site-health'] })
@@ -228,12 +271,21 @@ ${failures
 ---
 *Close this issue once resolved.*`
 
+  const issueTitle = `🚨 Site alert: ${failedNames} failing`
+
   console.log('Creating GitHub issue...')
-  const issue = await createIssue(
-    `🚨 Site alert: ${failedNames} failing`,
-    issueBody
-  )
+  const issue = await createIssue(issueTitle, issueBody)
   console.log(`Issue created: ${issue.html_url}`)
+
+  const emailText = [
+    `What failed: ${failedNames}`,
+    '',
+    diagnosis,
+    '',
+    `View full details and steps: ${issue.html_url}`,
+  ].join('\n')
+
+  await sendEmail(issueTitle, emailText)
 }
 
 main().catch(err => {

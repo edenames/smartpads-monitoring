@@ -5,6 +5,9 @@ on:
     - cron: '0 15 * * 1'  # 9am Mountain (MDT) every Monday
   workflow_dispatch:        # allows manual runs for testing
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   digest:
     runs-on: ubuntu-latest
@@ -16,10 +19,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Send weekly digest
         run: node weekly-digest.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_EMAILS: ${{ secrets.ALERT_EMAILS }}

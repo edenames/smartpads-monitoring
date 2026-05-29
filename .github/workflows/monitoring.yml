@@ -5,6 +5,9 @@ on:
     - cron: '*/30 * * * *'  # every 30 minutes
   workflow_dispatch:          # allows manual runs from GitHub
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   monitor:
     runs-on: ubuntu-latest
@@ -17,7 +20,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -40,6 +43,8 @@ jobs:
           REPO: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           PLAYWRIGHT_RESULTS: results.json
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_EMAILS: ${{ secrets.ALERT_EMAILS }}
 
       - name: Fail the workflow if checks failed
         if: steps.playwright.outcome == 'failure'
