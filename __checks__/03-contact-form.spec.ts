@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test'
 // Failure here = embed removed, form IDs changed, or HubSpot script failed to load.
 test('Contact form is present and interactive', async ({ page }) => {
   await page.goto('https://www.smartpads.co/contact-us')
-  await expect(page.locator('#does-not-exist')).toBeVisible()
+  await expect(page.locator('#email-form')).toBeVisible()
   await expect(page.locator('#First-Name')).toBeVisible()
   await expect(page.locator('#Last-Name')).toBeVisible()
   await expect(page.locator('#Email')).toBeVisible()
