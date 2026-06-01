@@ -200,8 +200,8 @@ Checks run every 30 minutes via [GitHub Actions](https://github.com/${process.en
 
   const openCount = incidents.filter(i => i.state === 'open').length
   const emailText = incidents.length === 0
-    ? `All automated checks passed this week. No incidents.\n\n${issue.html_url}`
-    : `${openCount > 0 ? `${openCount} incident(s) still open — action needed.` : 'All incidents resolved.'}\n\nFull summary: ${issue.html_url}`
+    ? `All automated checks passed this week. No incidents.${uptimeEmailText}\n\n${issue.html_url}`
+    : `${openCount > 0 ? `${openCount} incident(s) still open — action needed.` : 'All incidents resolved.'}${uptimeEmailText}\n\nFull summary: ${issue.html_url}`
 
   await sendEmail(title, emailText)
 }
