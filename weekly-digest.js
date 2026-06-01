@@ -144,7 +144,7 @@ async function main() {
     ? `\n\n---\n\n## UptimeRobot — 7-day uptime\n${monitors.map(m => `- **${m.friendly_name}** — ${m.custom_uptime_ratio}%`).join('\n')}`
     : ''
   const uptimeEmailText = monitors
-    ? `\nUptime this week:\n${monitors.map(m => `  ${m.friendly_name}: ${m.custom_uptime_ratio}%`).join('\n')}`
+    ? `\nUptime this week:\n${monitors.map(m => `  ${m.friendly_name}: ${m.custom_uptime_ratio}%`).join('\n')}\nStatus page: https://stats.uptimerobot.com/vdK5EDddOX`
     : ''
 
   const allIssues = await githubGet(

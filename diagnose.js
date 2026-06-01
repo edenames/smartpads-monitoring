@@ -335,6 +335,7 @@ ${failures
     '',
     diagnosis,
     '',
+    `Status page: https://stats.uptimerobot.com/vdK5EDddOX`,
     `View full details and steps: ${issue.html_url}`,
   ].join('\n')
 
