@@ -179,7 +179,7 @@ Checks run every 30 minutes via [GitHub Actions](https://github.com/${process.en
     if (open.length > 0) {
       body += `### 🔴 Still open — action needed (${open.length})\n`
       body += open
-        .map(i => `- [${i.title}](${i.html_url}) — opened ${new Date(i.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`)
+        .map(i => `- [${i.title}](${i.html_url})${i.labels?.some(l => l.name === 'test') ? ' *(test)*' : ''} — opened ${new Date(i.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`)
         .join('\n')
       body += '\n\n'
     }
@@ -187,7 +187,7 @@ Checks run every 30 minutes via [GitHub Actions](https://github.com/${process.en
     if (resolved.length > 0) {
       body += `### ✅ Resolved this week (${resolved.length})\n`
       body += resolved
-        .map(i => `- [${i.title}](${i.html_url}) — resolved ${new Date(i.closed_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`)
+        .map(i => `- [${i.title}](${i.html_url})${i.labels?.some(l => l.name === 'test') ? ' *(test)*' : ''} — resolved ${new Date(i.closed_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`)
         .join('\n')
       body += '\n'
     }
