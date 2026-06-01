@@ -5,7 +5,7 @@ async function sendEmail(subject, text) {
   if (!emails.length || !process.env.RESEND_API_KEY) return
 
   const data = JSON.stringify({
-    from: 'SmartPads Monitoring <onboarding@resend.dev>',
+    from: 'SmartPads Monitoring <alerts@smartpads.co>',
     to: emails,
     subject,
     text,
@@ -39,6 +39,41 @@ async function sendEmail(subject, text) {
     )
     req.on('error', reject)
     req.write(data)
+    req.end()
+  })
+}
+
+async function fetchUptimeRobotUptime() {
+  if (!process.env.UPTIMEROBOT_API_KEY) return null
+
+  const body = `api_key=${process.env.UPTIMEROBOT_API_KEY}&format=json&custom_uptime_ratios=7`
+
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        hostname: 'api.uptimerobot.com',
+        path: '/v2/getMonitors',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          'content-length': Buffer.byteLength(body),
+        },
+      },
+      res => {
+        let raw = ''
+        res.on('data', c => (raw += c))
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(raw)
+            resolve(parsed.monitors || null)
+          } catch {
+            resolve(null)
+          }
+        })
+      }
+    )
+    req.on('error', () => resolve(null))
+    req.write(body)
     req.end()
   })
 }
@@ -104,6 +139,14 @@ async function main() {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const weekLabel = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
 
+  const monitors = await fetchUptimeRobotUptime()
+  const uptimeSection = monitors
+    ? `\n\n---\n\n## UptimeRobot — 7-day uptime\n${monitors.map(m => `- **${m.friendly_name}** — ${m.custom_uptime_ratio}%`).join('\n')}`
+    : ''
+  const uptimeEmailText = monitors
+    ? `\nUptime this week:\n${monitors.map(m => `  ${m.friendly_name}: ${m.custom_uptime_ratio}%`).join('\n')}`
+    : ''
+
   const allIssues = await githubGet(
     `/repos/{owner}/{repo}/issues?labels=site-health&state=all&since=${since}&per_page=50`
   )
@@ -122,7 +165,7 @@ async function main() {
     title = `✅ Weekly digest — ${weekLabel} — no incidents`
     body = `## ✅ No incidents this week
 
-All automated checks passed throughout the past 7 days. No action needed.
+All automated checks passed throughout the past 7 days. No action needed.${uptimeSection}
 
 ---
 Checks run every 30 minutes via [GitHub Actions](https://github.com/${process.env.REPO}/actions/workflows/monitoring.yml).

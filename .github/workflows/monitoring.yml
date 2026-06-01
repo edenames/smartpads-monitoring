@@ -45,6 +45,7 @@ jobs:
           PLAYWRIGHT_RESULTS: results.json
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           ALERT_EMAILS: ${{ secrets.ALERT_EMAILS }}
+          UPTIMEROBOT_API_KEY: ${{ secrets.UPTIMEROBOT_API_KEY }}
 
       - name: Fail the workflow if checks failed
         if: steps.playwright.outcome == 'failure'

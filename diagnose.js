@@ -98,6 +98,48 @@ function collectFailures(suites) {
   return failures
 }
 
+async function fetchUptimeRobotStatus() {
+  if (!process.env.UPTIMEROBOT_API_KEY) return null
+
+  const body = `api_key=${process.env.UPTIMEROBOT_API_KEY}&format=json`
+
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        hostname: 'api.uptimerobot.com',
+        path: '/v2/getMonitors',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          'content-length': Buffer.byteLength(body),
+        },
+      },
+      res => {
+        let raw = ''
+        res.on('data', c => (raw += c))
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(raw)
+            resolve(parsed.monitors || null)
+          } catch {
+            resolve(null)
+          }
+        })
+      }
+    )
+    req.on('error', () => resolve(null))
+    req.write(body)
+    req.end()
+  })
+}
+
+function formatMonitorStatus(status) {
+  if (status === 2) return '✅ Up'
+  if (status === 8) return '⚠️ Seems down'
+  if (status === 9) return '🔴 Down'
+  return '❓ Unknown'
+}
+
 async function callClaude(prompt) {
   const data = JSON.stringify({
     model: 'claude-haiku-4-5-20251001',
@@ -138,7 +180,7 @@ async function sendEmail(subject, text) {
   if (!emails.length || !process.env.RESEND_API_KEY) return
 
   const data = JSON.stringify({
-    from: 'SmartPads Monitoring <onboarding@resend.dev>',
+    from: 'SmartPads Monitoring <alerts@smartpads.co>',
     to: emails,
     subject,
     text,
@@ -224,6 +266,15 @@ async function main() {
   const failedNames = failures.map(f => f.context?.name || f.name).join(', ')
   const runUrl = `https://github.com/${process.env.REPO}/actions/runs/${process.env.GITHUB_RUN_ID}`
 
+  const monitors = await fetchUptimeRobotStatus()
+  const uptimeSection = monitors
+    ? `## UptimeRobot Status\n${monitors.map(m => `- **${m.friendly_name}** — ${formatMonitorStatus(m.status)}`).join('\n')}`
+    : null
+
+  const uptimeContext = monitors
+    ? `UptimeRobot monitor status at time of failure:\n${monitors.map(m => `${m.friendly_name}: ${formatMonitorStatus(m.status)}`).join('\n')}`
+    : ''
+
   const failureDetail = failures.map(f => {
     const ctx = f.context
     return [
@@ -239,7 +290,9 @@ These health checks just failed:
 
 ${failureDetail}
 
-Write 2-4 sentences in plain English for a non-technical team member. Based on the specific error message, explain what is most likely broken right now and whether the team should try to fix it themselves or escalate immediately. Be specific — distinguish between "page didn't load at all" vs "element was missing" vs "timed out" where it matters. No jargon.`
+${uptimeContext}
+
+Write 2-4 sentences in plain English for a non-technical team member. Based on the specific error message, explain what is most likely broken right now and whether the team should try to fix it themselves or escalate immediately. Be specific — distinguish between "page didn't load at all" vs "element was missing" vs "timed out" where it matters. If UptimeRobot shows the site is up, note it's likely a page-level issue not a full outage. No jargon.`
 
   console.log('Calling Claude for diagnosis...')
   const diagnosis = await callClaude(prompt)
@@ -251,7 +304,7 @@ ${failures.map(f => `- **${f.context?.name || f.name}**`).join('\n')}
 
 ---
 
-## What's likely wrong
+${uptimeSection ? uptimeSection + '\n\n---\n\n' : ''}## What's likely wrong
 
 ${diagnosis}
 
